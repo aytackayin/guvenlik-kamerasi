@@ -109,8 +109,11 @@ class Tray:
         self.app_hwnd = found[0] if found else None
         return self.app_hwnd
 
+    def has_window(self):
+        return bool(self._find_window())
+
     def _watch(self):
-        """Pencere simge durumuna küçültülürse görev çubuğundan kaldırıp yalnızca tray'de tutar."""
+        """Uygulama penceresine program simgesini atar."""
         h = self._find_window()
         if not h:
             return
@@ -118,8 +121,6 @@ class Tray:
             self.iconed.add(h)
             user32.SendMessageW(h, WM_SETICON, 0, self.hicon_small or 0)
             user32.SendMessageW(h, WM_SETICON, 1, self.hicon_big or 0)
-        if user32.IsWindowVisible(h) and user32.IsIconic(h):
-            user32.ShowWindow(h, SW_HIDE)
 
     def show_window(self):
         h = self._find_window()

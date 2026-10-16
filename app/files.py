@@ -92,7 +92,8 @@ class Library:
             if not p.is_file():
                 continue
             ext = p.suffix.lower().lstrip(".")
-            if ext not in VIDEO | IMAGE | LOGS or p.name.endswith(".part"):
+            # indirilmekte olan dosyaların ara parçaları (… .cap1.mkv, … .part) kütüphanede görünmez
+            if ext not in VIDEO | IMAGE | LOGS or ".part" in p.name or re.search(r"\.cap\d*\.", p.name):
                 continue
             if ext in LOGS and not p.name.startswith("Olaylar_"):
                 continue

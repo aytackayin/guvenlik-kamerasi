@@ -21,7 +21,7 @@
 - **Kayıtlar:** Zaman çizelgesinde gün gün gezinme, 1×–8× hızlı oynatma, kare kare ilerleme.
 - **Kırp ve indir:** Kaydın istediğiniz bölümünü MP4, H.264, MKV, AVI, WebM ya da DAV olarak indirin.
 - **Disk ve kullanıcılar:** Disk durumunu görün, cihaz kullanıcılarını ve kamera ayarlarını (çözünürlük, fps, kalite) programdan yönetin.
-- **Tray'de çalışır:** Pencereyi küçülttüğünüzde program saat yanındaki bildirim alanına iner. Simgeye çift tıklayınca pencere açılır, tek tıklayınca menü gelir: **Aç**, **Bağlantıyı kapat / aç**, **Kapat**.
+- **Tray'de çalışır:** İsterseniz pencereyi kapattığınızda program kapanmaz, saat yanındaki bildirim alanında çalışmaya devam eder. Windows açılınca kendiliğinden başlayabilir ve aynı anda yalnızca bir kopyası açılır. Simgeye çift tıklayınca pencere açılır, tek tıklayınca menü gelir: **Aç**, **Bağlantıyı kapat / aç**, **Kapat**.
 - **Kendini günceller:** *Ayarlar → Hakkında* bölümünden yeni sürüm denetlenir ve tek tıkla kurulur.
 
 ![Hakkında ve güncelleme](docs/ekran-hakkinda.png)

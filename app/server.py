@@ -37,7 +37,9 @@ class App:
         self.library = files.Library(lambda: self.settings["save_dir"])
         self.logcache = logcache.LogCache(keep_days=lambda: self.settings.get("log_keep_days", 14))
         self.last_log_refresh = 0
-        self.downloads = media.Downloader(lambda: self.device, on_done=self._job_done)
+        self.downloads = media.Downloader(lambda: self.device, on_done=self._job_done,
+                                          store=config.APP_DIR / "indirmeler.json")
+        self.downloads.restore()            # yarım kalan indirmeler kaldığı yerden sürer
         self.clients = set()
         self.had_client = False
         self.records_cache = {}
@@ -106,11 +108,20 @@ class App:
                         "relay": "Bulut aktarımı ile bağlı"}.get(dev.mode, "Bağlı")
 
     async def background(self):
-        """Kamera listesini tazeler, uygulama penceresi kapanınca programı kapatır."""
+        """Kamera listesini tazeler; pencere kapanınca ayara göre programı kapatır ya da tray'de tutar."""
         idle_since = None
+        tick = 0
         asyncio.get_running_loop().call_later(15, lambda: asyncio.ensure_future(self.updater.check()))
         while True:
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
+            tick += 1
+            if self.had_client and not self.clients:
+                idle_since = idle_since or time.time()
+                await self._window_check(idle_since)
+            else:
+                idle_since = None
+            if tick % 5:
+                continue
             # cihaz anlık meşgulse 30 sn'de bir kendiliğinden yeniden dene (şifre hatasında deneme)
             if (self.status == "error" and time.time() - getattr(self, "failed_at", 0) > 30
                     and "şifre" not in self.message.lower() and "sn numarası" not in self.message.lower()
@@ -131,15 +142,18 @@ class App:
                     and time.time() - getattr(self, "connected_at", 0) > 60):
                 self.last_log_refresh = time.time()
                 asyncio.ensure_future(self._refresh_logs(d))
-            if self.had_client and not self.clients:
-                idle_since = idle_since or time.time()
-                busy = any(j["state"] in ("waiting", "running", "converting") for j in self.downloads.list())
-                if time.time() - idle_since > 20 and not busy:
-                    log.info("Pencere kapandı, çıkılıyor")
-                    await self.shutdown()
-                    os._exit(0)
-            else:
-                idle_since = None
+
+    async def _window_check(self, idle_since):
+        """Pencereyle bağlantı yok: pencere gerçekten kapatıldıysa (yenilenmiyorsa) ayara göre çıkar."""
+        if self.tray and self.settings.get("close_to_tray", True):
+            return                          # program tray'de çalışmaya devam eder
+        if any(j["state"] in ("waiting", "running", "converting") for j in self.downloads.list()):
+            return                          # süren indirmeler bitmeden kapanmaz
+        closed = self.tray and not self.tray.has_window()
+        if time.time() - idle_since > (2 if closed else 20):
+            log.info("Pencere kapandı, çıkılıyor")
+            await self.shutdown()
+            os._exit(0)
 
     def display_aspect(self, ch=None, camera=None):
         """Kameranın gerçek görüntü oranı ("4:3"/"16:9"); 'orijinal' seçiliyse None."""
@@ -176,6 +190,10 @@ class App:
         """Cihazdaki açık akışları kapatır (yoksa cihaz bir süre boşa veri göndermeye devam eder)."""
         if self.tray:
             self.tray.remove()
+        try:
+            await self.downloads.suspend_all()      # süren indirmeler açılışta kaldığı yerden devam eder
+        except Exception:
+            log.exception("indirmeler durdurulamadı")
         if self.device:
             try:
                 await asyncio.wait_for(self.device.close(), 3)
@@ -192,7 +210,8 @@ class App:
         return {
             "status": self.status,
             "message": self.message,
-            "settings": {k: v for k, v in s.items() if k != "password"} | {"has_password": bool(s.get("password"))},
+            "settings": {k: v for k, v in s.items() if k != "password"} | {"has_password": bool(s.get("password")),
+                                                                            "autostart": config.autostart_get()},
             "device": d.summary() if d else None,
             "channels": [c | {"prefs": self.camera_prefs(c["id"])} for c in channels],
             "all_channels": d.channels if d else [],
@@ -231,6 +250,11 @@ def routes(app: App):
                 s[k] = data[k]
         if data.get("password"):
             s["password"] = data["password"]
+        if "autostart" in data:
+            try:
+                config.autostart_set(bool(data["autostart"]))
+            except OSError as e:
+                return web.json_response({"error": f"Windows başlangıç ayarı yazılamadı: {e}"}, status=400)
         s["serial"] = (s.get("serial") or "").strip().upper()
         s["ip"] = (s.get("ip") or "").strip()
         reconnect = any(s.get(k) != app.settings.get(k) for k in ("serial", "username", "password", "mode", "ip"))
@@ -248,6 +272,15 @@ def routes(app: App):
             await app.shutdown()
             os._exit(0)
         asyncio.get_running_loop().call_later(0.2, lambda: asyncio.ensure_future(later()))
+        return web.json_response({"ok": True})
+
+    @r.post("/api/show")
+    async def show(_):
+        """İkinci kez başlatılan program bunu çağırır: var olan pencere öne gelir (yoksa açılır)."""
+        if app.tray:
+            app.tray.show_window()
+        elif getattr(app, "open_window", None):
+            app.open_window()
         return web.json_response({"ok": True})
 
     @r.get("/api/update")
@@ -819,11 +852,21 @@ def routes(app: App):
                 result["events"] = {"error": str(e)}
         return web.json_response(result)
 
+    @r.post("/api/downloads/{id}/pause")
+    async def pause_dl(req):
+        app.downloads.pause(int(req.match_info["id"]))
+        return web.json_response(app.downloads.list())
+
+    @r.post("/api/downloads/{id}/resume")
+    async def resume_dl(req):
+        app.downloads.resume(int(req.match_info["id"]))
+        return web.json_response(app.downloads.list())
+
     @r.delete("/api/downloads/{id}")
     async def del_dl(req):
         jid = int(req.match_info["id"])
         job = app.downloads.jobs.get(jid)
-        if job and job.state in ("waiting", "running", "converting"):
+        if job and job.state in ("waiting", "running", "converting", "paused"):
             app.downloads.cancel(jid)
         else:
             app.downloads.remove(jid)

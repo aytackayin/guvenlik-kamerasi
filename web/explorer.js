@@ -22,21 +22,40 @@ function exInit() {
   $("#ex-from").max = $("#ex-to").max = today;
   const t = $("#ex-type");
   if (t.options[0]?.value !== exTypes[0][0]) t.innerHTML = exTypes.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
-  const cams = $("#ex-cams");
-  if (!cams.children.length) {
-    for (const c of S.channels) {
-      const l = document.createElement("label");
-      l.className = "chip";
-      l.innerHTML = `<input type="checkbox" value="${c.id}" checked><span></span>`;
-      $("span", l).textContent = c.name;
-      $("input", l).onchange = exRender;
-      cams.appendChild(l);
-    }
-  }
+  exCamChips();
   exLoad();
 }
 
+const exAllCams = () => S.availChannels || S.channels || [];
 const exCams = () => $$("#ex-cams input:checked").map((i) => +i.value);
+
+// Disk'in kendi kamera seçimi: Canlı / Kayıtlar ekranındaki seçimden bağımsızdır ve hatırlanır
+function exCamChips() {
+  const all = exAllCams();
+  const key = all.map((c) => `${c.id}:${c.name}`).join(",");
+  const cams = $("#ex-cams");
+  if (cams.dataset.key === key) return;
+  cams.dataset.key = key;
+  const hidden = new Set(((S.state?.settings?.hidden_cams) || {}).disk || []);
+  cams.innerHTML = "";
+  for (const c of all) {
+    const l = document.createElement("label");
+    l.className = "chip";
+    l.innerHTML = `<input type="checkbox" value="${c.id}" ${hidden.has(c.id) ? "" : "checked"}><span></span>`;
+    $("span", l).textContent = c.name;
+    $("input", l).onchange = exCamSave;
+    cams.appendChild(l);
+  }
+}
+
+async function exCamSave() {
+  exRender();
+  const on = exCams();
+  const hc = { ...((S.state?.settings?.hidden_cams) || {}) };
+  hc.disk = exAllCams().map((c) => c.id).filter((id) => !on.includes(id));
+  try { S.state = await api("/api/settings", { method: "POST", body: { hidden_cams: hc } }); }
+  catch (e) { toast(e.message, { err: true }); }
+}
 
 async function exLoad() {
   const from = $("#ex-from").value, to = $("#ex-to").value;
@@ -47,7 +66,8 @@ async function exLoad() {
   $("#ex-list").innerHTML = `<div style="display:flex;gap:12px;align-items:center;padding:16px"><div class="spinner"></div>Cihazdaki kayıtlar okunuyor…</div>`;
   $("#ex-bar").innerHTML = "";
   try {
-    const all = S.channels.map((c) => c.id).join(",");
+    exCamChips();
+    const all = exAllCams().map((c) => c.id).join(",");
     const r = await api(`/api/recfiles?from=${from}&to=${to}&ch=${all}`);
     E.files = r.files; E.loaded = true; E.sel.clear();
     exRender();
@@ -209,6 +229,8 @@ function exDownloadDialog(rows) {
     try {
       const r = await api("/api/downloads", { method: "POST", body });
       modalClose();
+      for (const row of rows) E.sel.delete(row.key);
+      exRender();
       const ev = r.events ? (r.events.error ? ` Olay logu alınamadı: ${r.events.error}` : ` ${r.events.count} olay logu kaydedildi.`) : "";
       toast(`${r.jobs.length} parça indirme sırasına alındı.${ev}`, { time: 7000, action: { label: "İndirilenler", run: () => go("downloads") } });
       pollDownloads();

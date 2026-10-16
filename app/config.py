@@ -29,6 +29,7 @@ DEFAULTS = {
     "hidden_cams": {},     # ekranda gizlenen kameralar: {"live": [3], "archive": []}
     "log_keep_days": 14,   # programın sakladığı cihaz logu arşivi (gün); daha eskisi kendiliğinden silinir
     "cameras": {},         # kamera başına: {"1": {"mp": 5, "aspect": "auto"}}
+    "close_to_tray": True,  # pencere kapatılınca program kapanmasın, bildirim alanında (tray) çalışmaya devam etsin
 }
 
 
@@ -89,3 +90,39 @@ def save(data):
     out = {k: data.get(k, v) for k, v in DEFAULTS.items()}
     out["password"] = _protect(out["password"])
     SETTINGS_FILE.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ------------------------------------------------ Windows ile başlatma
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+RUN_NAME = "GuvenlikKamerasi"
+
+
+def _start_command():
+    import sys
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}" --autostart'
+    exe = Path(sys.executable)
+    pyw = exe.with_name("pythonw.exe")
+    main = Path(__file__).resolve().with_name("main.py")
+    return f'"{pyw if pyw.exists() else exe}" "{main}" --autostart'
+
+
+def autostart_get():
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            return bool(winreg.QueryValueEx(k, RUN_NAME)[0])
+    except OSError:
+        return False
+
+
+def autostart_set(on):
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+        if on:
+            winreg.SetValueEx(k, RUN_NAME, 0, winreg.REG_SZ, _start_command())
+        else:
+            try:
+                winreg.DeleteValue(k, RUN_NAME)
+            except FileNotFoundError:
+                pass

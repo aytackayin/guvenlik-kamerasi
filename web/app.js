@@ -282,6 +282,7 @@ function fitAspect(tile, getA) {
     let w = W, h = W / a;
     if (h > H) { h = H; w = H * a; }
     Object.assign(v.style, { width: w + "px", height: h + "px", left: (W - w) / 2 + "px", top: (H - h) / 2 + "px" });
+    tile._afterFit?.();
   };
   tile._fit = fit;
   new ResizeObserver(fit).observe(tile);
@@ -622,16 +623,28 @@ function setupZoom(tile) {
   const ind = document.createElement("div");
   ind.className = "zoom-ind";
   tile.appendChild(ind);
+  const video = $("video", tile);
+  // kaydırma sınırı videonun kendi kenarlarıdır: yakınlaştırınca yandaki siyah boşluk görünmez,
+  // video ekrandan küçük kaldığı eksende ortalanır
+  const clamp = (pos, k, box0, boxLen, view) => {
+    const len = boxLen * k, start = box0 * k;
+    if (len <= view) return (view - len) / 2 - start;
+    return Math.min(-start, Math.max(view - len - start, pos));
+  };
   const apply = () => {
     const z = S.zoom, W = tile.clientWidth, H = tile.clientHeight;
+    if (!W || !H) return;              // oynatıcı alanı gizliyken (yükleme vb.) konumu bozma
     z.k = Math.min(8, Math.max(1, z.k));
-    z.x = Math.min(0, Math.max(W - W * z.k, z.x));
-    z.y = Math.min(0, Math.max(H - H * z.k, z.y));
+    const bx = parseFloat(video.style.left) || 0, by = parseFloat(video.style.top) || 0;
+    const bw = parseFloat(video.style.width) || W, bh = parseFloat(video.style.height) || H;
+    z.x = z.k <= 1.01 ? 0 : clamp(z.x, z.k, bx, bw, W);
+    z.y = z.k <= 1.01 ? 0 : clamp(z.y, z.k, by, bh, H);
     v.style.transform = `translate(${z.x}px, ${z.y}px) scale(${z.k})`;
     ind.textContent = `${z.k.toFixed(1)}×`;
     ind.hidden = z.k <= 1.01;
   };
   S.applyZoom = apply;
+  tile._afterFit = apply;
   S.zoomAt = (factor, cx = tile.clientWidth / 2, cy = tile.clientHeight / 2) => {
     const z = S.zoom, k = Math.min(8, Math.max(1, z.k * factor));
     z.x = cx - (cx - z.x) * (k / z.k);
@@ -818,6 +831,8 @@ function fillSettings() {
   $("#f-ip").value = s.ip || "";
   $("#f-dir").value = s.save_dir || "";
   $("#f-showall").checked = !!s.show_all;
+  $("#f-tray").checked = s.close_to_tray !== false;
+  $("#f-autostart").checked = !!s.autostart;
   const fs = $("#f-format");
   if (!fs.options.length) fs.innerHTML = st.formats.map((f) => `<option value="${f.id}">${f.label}</option>`).join("");
   fs.value = s.format || "mp4";
@@ -1072,6 +1087,15 @@ function bind() {
   $("#btn-save").onclick = () => saveSettings(true);
   $("#btn-save2").onclick = () => saveSettings(false);
   $("#f-showall").onchange = () => saveSettings(false);
+  // program davranışı: yalnızca ilgili ayar kaydedilir (formdaki kaydedilmemiş alanlara dokunulmaz)
+  for (const [id, key, on, off] of [["f-tray", "close_to_tray", "Kapatınca tray'de çalışmaya devam edecek", "Kapatınca program tamamen kapanacak"],
+                                    ["f-autostart", "autostart", "Windows açılınca başlayacak", "Windows açılınca başlamayacak"]]) {
+    $("#" + id).onchange = async (e) => {
+      const v = e.target.checked;
+      try { S.state = await api("/api/settings", { method: "POST", body: { [key]: v } }); toast(v ? on : off); }
+      catch (err) { e.target.checked = !v; toast(err.message, { err: true }); }
+    };
+  }
   $("#btn-dir").onclick = async () => { const r = await api("/api/choose-folder", { method: "POST" }); if (r.path) { $("#f-dir").value = r.path; saveSettings(false); } };
   $("#btn-open-folder").onclick = () => api("/api/open", { method: "POST", body: {} });
   $("#btn-rescan").onclick = async () => { toast("Kameralar taranıyor…"); S.state = await api("/api/refresh-channels", { method: "POST" }); applyState(); renderDevice(); toast(`${S.channels.length} kamera bulundu`); };

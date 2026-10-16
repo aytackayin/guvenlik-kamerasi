@@ -82,8 +82,7 @@ function libRender() {
         <div class="lib-sub">${esc(when)}</div><div class="lib-sub">${fmtSize(it.size)}${it.folder ? " · " + esc(it.folder) : ""}</div>
         ${it.note ? `<div class="lib-note">${hl(it.note, q)}</div>` : ""}</div>
       <div class="lib-actions">
-        <button class="btn small" data-a="open">${icon(it.kind === "video" ? "play" : "expand")}${it.kind === "video" ? "Oynat" : "Aç"}</button>
-        <button class="btn small" data-a="note">${icon("note")}${it.note ? "Notu düzenle" : "Not ekle"}</button>
+        <button class="btn small" data-a="note" title="${it.note ? "Notu düzenle" : "Not ekle"}">${icon("note")}<span class="lbl">${it.note ? "Notu düzenle" : "Not ekle"}</span></button>
         <div class="grow"></div>
         <button class="btn small icon ghost" data-a="show" title="Klasörde göster">${icon("folder")}</button>
         <button class="btn small icon ghost danger" data-a="del" title="Sil (Geri Dönüşüm Kutusu)">${icon("x")}</button>
@@ -109,28 +108,53 @@ function libJobs(list) {
   L.jobs = list;
   const box = $("#dl-active");
   if (!box) return;
-  const active = list.filter((j) => ["waiting", "running", "converting"].includes(j.state) || j.state === "error");
+  const active = list.filter((j) => ["waiting", "running", "converting", "paused", "error"].includes(j.state));
   if (!active.length) { box.innerHTML = ""; }
   else {
-    box.innerHTML = `<div class="card" style="padding:10px 16px"><h2 style="font-size:13.5px;margin:4px 0">Devam eden işler</h2><div id="dl-list"></div></div>`;
+    if (!$("#dl-list", box)) box.innerHTML = `<div class="card" style="padding:10px 16px"><h2 style="font-size:13.5px;margin:4px 0">Devam eden işler</h2><div id="dl-list"></div></div>`;
     const lst = $("#dl-list");
-    for (const j of active) {
-      const el = document.createElement("div");
-      el.className = `dl-item ${j.state}`;
-      const running = ["waiting", "running", "converting"].includes(j.state);
-      el.innerHTML = `<div class="dl-ico">${esc(j.filename.split(".").pop().toUpperCase())}</div>
-        <div><div class="dl-name"></div><div class="dl-meta"></div>${running ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div>` : ""}</div>
-        <div class="dl-actions"><button class="btn small ${running ? "danger" : "icon ghost"}">${icon("x")}${running ? "İptal" : ""}</button></div>`;
-      $(".dl-name", el).textContent = j.filename;
-      $(".dl-meta", el).textContent = `${j.name} · ${j.start.slice(11)} → ${j.end.slice(11)} · ${j.format_label} · ${j.message}`;
-      $("button", el).onclick = () => api(`/api/downloads/${j.id}`, { method: "DELETE" }).then(pollDownloads);
-      lst.appendChild(el);
-    }
+    // satırlar yerinde güncellenir (her saniye yeniden çizilirse tıklanan düğme elden kayıyordu);
+    // düğmeler yalnızca işin durumu değişince yenilenir
+    const ids = new Set(active.map((j) => String(j.id)));
+    for (const el of [...lst.children]) if (!ids.has(el.dataset.id)) el.remove();
+    active.forEach((j, i) => {
+      let el = lst.querySelector(`[data-id="${j.id}"]`);
+      if (!el || el.dataset.state !== j.state) {
+        const fresh = jobRow(j);
+        if (el) el.replaceWith(fresh); else lst.appendChild(fresh);
+        el = fresh;
+      }
+      $(".dl-meta", el).textContent = `${j.name} · ${j.start.slice(0, 10).split("-").reverse().join(".")} ${j.start.slice(11, 16)} → ${j.end.slice(11, 16)} · ${j.format_label} · ${j.message}`;
+      const bar = $(".bar i", el);
+      if (bar) bar.style.width = `${Math.round(j.progress * 100)}%`;
+      if (lst.children[i] !== el) lst.insertBefore(el, lst.children[i] || null);
+    });
   }
   // biten iş varsa listeyi tazele
   let fresh = false;
   for (const j of list) if (j.state === "done" && !L.seenDone.has(j.id)) { L.seenDone.add(j.id); fresh = true; }
   if (fresh && S.page === "downloads") libLoad();
+}
+
+function jobRow(j) {
+  const el = document.createElement("div");
+  el.className = `dl-item ${j.state}`;
+  el.dataset.id = j.id;
+  el.dataset.state = j.state;
+  const running = ["waiting", "running", "converting", "paused"].includes(j.state);
+  const canPause = j.state === "waiting" || j.state === "running";
+  el.innerHTML = `<div class="dl-ico">${esc(j.filename.split(".").pop().toUpperCase())}</div>
+    <div><div class="dl-name"></div><div class="dl-meta"></div>${running ? `<div class="bar"><i></i></div>` : ""}</div>
+    <div class="dl-actions">${canPause ? `<button class="btn small" data-a="pause">${icon("pause")}Duraklat</button>` : ""}${j.state === "paused" ? `<button class="btn small primary" data-a="resume">${icon("play")}Devam et</button>` : ""}<button class="btn small ${running ? "danger" : "icon ghost"}" data-a="del">${icon("x")}${running ? "İptal" : ""}</button></div>`;
+  $(".dl-name", el).textContent = j.filename;
+  $(".dl-actions", el).onclick = (e) => {
+    const a = e.target.closest("[data-a]")?.dataset.a;
+    if (a === "del") {
+      if (j.state === "paused" && !confirm("Duraklatılmış indirme iptal edilsin mi? İnen kısım silinir.")) return;
+      api(`/api/downloads/${j.id}`, { method: "DELETE" }).then(pollDownloads);
+    } else if (a) api(`/api/downloads/${j.id}/${a}`, { method: "POST" }).then(pollDownloads);
+  };
+  return el;
 }
 
 async function libDelete(it) {

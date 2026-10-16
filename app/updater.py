@@ -11,7 +11,7 @@ from pathlib import Path
 
 import aiohttp
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 REPO = "aytackayin/guvenlik-kamerasi"
 AUTHOR_URL = "https://github.com/aytackayin"
 REPO_URL = f"https://github.com/{REPO}"

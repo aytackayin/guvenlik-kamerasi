@@ -255,6 +255,7 @@ svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-widt
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
 .dl-item.done .dl-meta { color: var(--ok); }
 .dl-item.error .dl-meta { color: var(--err); }
+.dl-item.paused .bar i { background: var(--muted); }
 .dl-actions { display: flex; gap: 6px; }
 
 /* bildirim */
@@ -367,6 +368,8 @@ svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-widt
 .lib-actions { display: flex; gap: 4px; padding: 8px 8px 10px; }
 .lib-actions .btn { height: 30px; padding: 0 8px; font-size: 12px; }
 .lib-actions .grow { flex: 1; }
+.lib-actions .btn { flex: none; }
+.lib-actions .btn.icon { width: 30px; padding: 0; }
 .lib-empty { padding: 40px; text-align: center; color: var(--muted); grid-column: 1 / -1; }
 mark { background: rgba(245,165,36,.35); color: inherit; border-radius: 3px; }
 
@@ -444,3 +447,7 @@ mark { background: rgba(245,165,36,.35); color: inherit; border-radius: 3px; }
 .upd-bar div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
 .upd-notes { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); font-size: 13px;
   line-height: 1.55; white-space: pre-wrap; max-height: 260px; overflow: auto; }
+
+/* Disk › kayıt listesi: "Tümünü seç" satırı kaydırırken üstte kalır */
+#disk-files .lib-toolbar { position: static; }
+#ex-bar { position: sticky; top: -26px; z-index: 3; box-shadow: 0 8px 18px -10px rgba(0, 0, 0, .55); }

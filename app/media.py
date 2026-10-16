@@ -3,7 +3,9 @@ Görüntü aktarımı (RTSP -> parçalı MP4 -> WebSocket -> tarayıcı MSE) ve 
 """
 import asyncio
 import datetime as dt
+import glob
 import itertools
+import json
 import logging
 import os
 import re
@@ -217,31 +219,38 @@ class DavWriter:
         self.f.close()
 
 
-def nut_to_dav(src, dst, channel, start_time):
-    """Ara NUT dosyasındaki (Annex-B) kareleri DAV dosyasına yazar."""
+def nut_to_dav(srcs, dst, channel, start_time):
+    """Ara NUT dosyalarındaki (Annex-B) kareleri sırayla tek bir DAV dosyasına yazar."""
     import av
+    if isinstance(srcs, (str, Path)):
+        srcs = [srcs]
     w = DavWriter(dst, channel, start_time)
+    base = 0                                   # sonraki parçanın zamanı öncekinin bittiği yerden sürer
     try:
-        with av.open(str(src)) as c:
-            vs = c.streams.video[0] if c.streams.video else None
-            aus = c.streams.audio[0] if c.streams.audio else None
-            fps = float(vs.average_rate or vs.guessed_rate or 25) if vs else 25
-            if fps > 60:
-                fps = 25
-            t0 = None
-            for pkt in c.demux():
-                if pkt.size == 0 or pkt.pts is None:
-                    continue
-                t = float(pkt.pts * pkt.time_base)
-                if t0 is None:
-                    t0 = t
-                ms = int(round((t - t0) * 1000))
-                if vs is not None and pkt.stream is vs:
-                    w.video(bytes(pkt), pkt.is_keyframe, ms, vs.codec_context.name,
-                            vs.codec_context.width, vs.codec_context.height, fps)
-                elif aus is not None and pkt.stream is aus:
-                    w.audio(bytes(pkt), ms, aus.codec_context.name, aus.codec_context.sample_rate,
-                            aus.codec_context.channels if hasattr(aus.codec_context, "channels") else 1)
+        for src in srcs:
+            with av.open(str(src)) as c:
+                vs = c.streams.video[0] if c.streams.video else None
+                aus = c.streams.audio[0] if c.streams.audio else None
+                fps = float(vs.average_rate or vs.guessed_rate or 25) if vs else 25
+                if fps > 60:
+                    fps = 25
+                t0 = None
+                last = base
+                for pkt in c.demux():
+                    if pkt.size == 0 or pkt.pts is None:
+                        continue
+                    t = float(pkt.pts * pkt.time_base)
+                    if t0 is None:
+                        t0 = t
+                    ms = base + int(round((t - t0) * 1000))
+                    last = max(last, ms)
+                    if vs is not None and pkt.stream is vs:
+                        w.video(bytes(pkt), pkt.is_keyframe, ms, vs.codec_context.name,
+                                vs.codec_context.width, vs.codec_context.height, fps)
+                    elif aus is not None and pkt.stream is aus:
+                        w.audio(bytes(pkt), ms, aus.codec_context.name, aus.codec_context.sample_rate,
+                                aus.codec_context.channels if hasattr(aus.codec_context, "channels") else 1)
+            base = last + int(1000 / fps)
     finally:
         w.close()
 
@@ -301,10 +310,18 @@ def _safe(name):
     return re.sub(r'[<>:"/\\|?*]+', "_", name).strip() or "Kamera"
 
 
+ACTIVE = ("waiting", "running", "converting")     # 'paused' bunlara dahil değil: program kapanabilir
+
+
+class _Paused(Exception):
+    """Duraklatma ya da program kapanışı: inen parçalar saklanır, iş sonra kaldığı yerden sürer."""
+
+
 class Job:
     _ids = itertools.count(1)
 
-    def __init__(self, ch, ch_name, start, end, fmt, quality, folder, aspect=None, source=None, offset=0.0):
+    def __init__(self, ch, ch_name, start, end, fmt, quality, folder, aspect=None, source=None, offset=0.0,
+                 path=None, taken=()):
         self.id = next(self._ids)
         self.ch, self.ch_name = ch, ch_name
         self.start, self.end = start, end
@@ -312,24 +329,38 @@ class Job:
         self.aspect = aspect            # "4:3" gibi; dosyaya görüntü oranı olarak yazılır
         self.source = source            # yerel dosyadan kesit alınıyorsa kaynak yol
         self.offset = offset            # kaynakta başlangıç (sn)
-        stamp = f"{start:%Y-%m-%d_%H-%M-%S}_{end:%H-%M-%S}"
-        base = f"{_safe(ch_name)}_{stamp}" + ("_kesit" if source else "")
-        self.path = Path(folder) / f"{base}.{FORMATS[fmt]['ext']}"
-        n = 2
-        while self.path.exists():
-            self.path = self.path.with_name(f"{base} ({n}).{FORMATS[fmt]['ext']}")
-            n += 1
-        self.state = "waiting"     # waiting | running | converting | done | error | cancelled
+        if path:
+            self.path = Path(path)
+        else:
+            stamp = f"{start:%Y-%m-%d_%H-%M-%S}_{end:%H-%M-%S}"
+            base = f"{_safe(ch_name)}_{stamp}" + ("_kesit" if source else "")
+            self.path = Path(folder) / f"{base}.{FORMATS[fmt]['ext']}"
+            n = 2
+            while self.path.exists() or self.path in taken:
+                self.path = self.path.with_name(f"{base} ({n}).{FORMATS[fmt]['ext']}")
+                n += 1
+        self.state = "waiting"     # waiting | running | paused | converting | done | error | cancelled
         self.progress = 0.0
         self.message = "Sırada"
         self.size = 0
         self.task = None
         self.proc = None
         self.created = time.time()
+        self.pieces = []           # [(dosya adı, süre sn)]: inmiş, sağlam parçalar
+        self.sub = None            # kullanılan akış (0 ana, 1 alt)
+        self.pause_req = False     # kullanıcı duraklattı
+        self.suspend_req = False   # program kapanıyor: açılınca kendiliğinden sürecek
 
     @property
     def duration(self):
         return max(1.0, (self.end - self.start).total_seconds())
+
+    @property
+    def done_sec(self):
+        return sum(d for _, d in self.pieces)
+
+    def piece_path(self, n):
+        return self.path.with_name(f"{self.path.name}.cap{n}.{'nut' if self.fmt == 'dav' else 'mkv'}")
 
     def to_dict(self):
         return {
@@ -341,25 +372,111 @@ class Job:
             "local": bool(self.source),
         }
 
+    def to_store(self):
+        return {"ch": self.ch, "ch_name": self.ch_name, "start": self.start.isoformat(), "end": self.end.isoformat(),
+                "fmt": self.fmt, "quality": self.quality, "aspect": self.aspect, "source": self.source,
+                "offset": self.offset, "path": str(self.path), "pieces": self.pieces, "sub": self.sub,
+                "paused": self.state == "paused" and self.pause_req, "created": self.created}
+
+    @classmethod
+    def from_store(cls, d):
+        job = cls(d["ch"], d["ch_name"], dt.datetime.fromisoformat(d["start"]), dt.datetime.fromisoformat(d["end"]),
+                  d["fmt"], d.get("quality", "main"), None, aspect=d.get("aspect"), source=d.get("source"),
+                  offset=d.get("offset", 0.0), path=d["path"])
+        job.pieces = [(n, float(s)) for n, s in d.get("pieces", []) if (job.path.parent / n).exists()]
+        job.sub = d.get("sub")
+        job.created = d.get("created", job.created)
+        job.progress = min(0.99, job.done_sec / job.duration)
+        return job
+
 
 class Downloader:
-    def __init__(self, get_device, on_done=None):
+    def __init__(self, get_device, on_done=None, store=None):
         self.get_device = get_device
         self.on_done = on_done          # bitince çağrılır (kitaplığa kayıt bilgisi yazmak için)
+        self.store = Path(store) if store else None   # bitmemiş işler burada saklanır
         self.jobs = {}
         self.sem = asyncio.Semaphore(2)
         self.local_sem = asyncio.Semaphore(2)
 
+    # ------------------------------------------------ kalıcı liste
+    def save(self):
+        if not self.store:
+            return
+        keep = [j.to_store() for j in sorted(self.jobs.values(), key=lambda j: j.id)
+                if j.state in ACTIVE or j.state == "paused"]
+        try:
+            self.store.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.store.with_suffix(".tmp")
+            tmp.write_text(json.dumps(keep, ensure_ascii=False, indent=1), encoding="utf-8")
+            os.replace(tmp, self.store)
+        except OSError:
+            log.exception("indirme listesi yazılamadı")
+
+    def restore(self):
+        """Program açılırken yarım kalan indirmeleri geri yükler; duraklatılmamış olanlar kendiliğinden sürer."""
+        if not self.store or not self.store.exists():
+            return
+        try:
+            items = json.loads(self.store.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        for d in items:
+            try:
+                job = Job.from_store(d)
+            except (KeyError, ValueError):
+                continue
+            self.jobs[job.id] = job
+            if d.get("paused"):
+                job.state, job.pause_req = "paused", True
+                job.message = f"Duraklatıldı (%{int(job.progress * 100)})"
+            else:
+                self._start(job)
+        if items:
+            log.info("%d yarım indirme geri yüklendi", len(items))
+
+    # ------------------------------------------------ işlemler
     def add(self, **kw):
-        job = Job(**kw)
+        taken = {j.path for j in self.jobs.values() if j.state in ACTIVE or j.state == "paused"}
+        job = Job(taken=taken, **kw)
         job.path.parent.mkdir(parents=True, exist_ok=True)
         self.jobs[job.id] = job
-        job.task = asyncio.ensure_future(self._run(job))
+        self._start(job)
+        self.save()
         return job
+
+    def _start(self, job):
+        job.pause_req = job.suspend_req = False
+        job.state = "waiting"
+        job.message = f"Sırada (%{int(job.progress * 100)} inmiş)" if job.pieces else "Sırada"
+        job.task = asyncio.ensure_future(self._run(job))
+
+    def pause(self, jid):
+        job = self.jobs.get(jid)
+        if not job or job.state not in ("waiting", "running"):
+            return
+        job.pause_req = True
+        if job.state == "waiting":
+            job.task.cancel()            # sıradaysa hemen; çalışıyorsa parça düzgün kapatılıp durur
+        else:
+            job.message = "Duraklatılıyor…"
+
+    def resume(self, jid):
+        job = self.jobs.get(jid)
+        if job and job.state == "paused":
+            self._start(job)
+            self.save()
 
     def cancel(self, jid):
         job = self.jobs.get(jid)
-        if job and job.state in ("waiting", "running", "converting"):
+        if not job:
+            return
+        if job.state == "paused":
+            job.state, job.message = "cancelled", "İptal edildi"
+            self._cleanup(job)
+            self.save()
+        elif job.state in ACTIVE:
+            job.pause_req = job.suspend_req = False
             job.state = "cancelled"
             job.message = "İptal edildi"
             if job.proc and job.proc.returncode is None:
@@ -368,68 +485,143 @@ class Downloader:
 
     def remove(self, jid):
         job = self.jobs.get(jid)
-        if job and job.state not in ("waiting", "running", "converting"):
+        if job and job.state not in ACTIVE and job.state != "paused":
             del self.jobs[jid]
+
+    async def suspend_all(self, timeout=10):
+        """Program kapanırken: süren indirmeler parçası düzgün kapatılarak durdurulur, açılışta sürer."""
+        tasks = []
+        for job in self.jobs.values():
+            if job.state in ("waiting", "running") and job.task:
+                job.suspend_req = True
+                if job.state == "waiting":
+                    job.task.cancel()
+                tasks.append(job.task)
+        if tasks:
+            await asyncio.wait(tasks, timeout=timeout)
+        self.save()
 
     def list(self):
         return [j.to_dict() for j in sorted(self.jobs.values(), key=lambda j: -j.id)]
+
+    # ------------------------------------------------ çalıştırma
+    async def _device(self, job):
+        """Cihaz bağlı değilse bağlanmasını bekler (program yeni açıldıysa bağlantı birkaç saniye sürer)."""
+        while True:
+            dev = self.get_device()
+            if dev and dev.connected:
+                return dev
+            job.message = "Cihaz bağlantısı bekleniyor…"
+            await asyncio.sleep(2)
 
     async def _run(self, job):
         try:
             async with (self.local_sem if job.source else self.sem):
                 if job.state == "cancelled":
                     return
-                dev = None if job.source else self.get_device()
-                if not job.source and (not dev or not dev.connected):
-                    raise RuntimeError("Cihaz bağlı değil")
+                dev = None if job.source else await self._device(job)
                 job.state = "running"
                 job.message = "Kesit hazırlanıyor…" if job.source else "Kayıt alınıyor…"
-                sub = 1 if job.quality == "sub" else 0
-                tmp = job.path.with_suffix(".nut.part") if job.fmt == "dav" else job.path.with_name(job.path.name + ".cap.mkv")
-                for attempt in range(2):
-                    ok = await self._capture(job, dev, sub, tmp)
-                    if ok:
+                await self._adopt_orphan(job)
+                if job.sub is None:
+                    job.sub = 1 if job.quality == "sub" else 0
+                drops = 0
+                while job.duration - job.done_sec > 2.5:
+                    piece = job.piece_path(len(job.pieces) + 1)
+                    got, done = await self._capture(job, dev, piece)
+                    if got > 0.5 and piece.exists():
+                        job.pieces.append((piece.name, (await _probe_duration(piece)) or got))
+                        self.save()
+                    else:
+                        piece.unlink(missing_ok=True)
+                    if job.pause_req or job.suspend_req:
+                        raise _Paused()
+                    if done:
                         break
-                    if job.progress < 0.02 and sub == 1 and attempt == 0:
-                        sub = 0     # alt akış kaydı yoksa ana akışla dene
+                    if not job.pieces and job.sub == 1:
+                        job.sub = 0         # alt akış kaydı yoksa ana akışla dene
                         continue
-                    if not ok:
-                        raise RuntimeError(job.message if job.state == "error" else "Kayıt alınamadı. Bu aralıkta kayıt olmayabilir.")
+                    # akış erken kesildi: bağlantı koptuysa yeniden bağlanınca kaldığı yerden sür
+                    if dev and not dev.connected and drops < 5:
+                        drops += 1
+                        dev = await self._device(job)
+                        job.message = "Kayıt alınıyor…"
+                        continue
+                    break                   # cihaz bağlı ama veri bitti: bu aralığın kalanında kayıt yok
+                if not job.pieces:
+                    raise RuntimeError("Kayıt alınamadı. Bu aralıkta kayıt olmayabilir.")
+                partial = job.duration - job.done_sec > 3
+                job.state = "converting"
+                paths = [job.path.parent / n for n, _ in job.pieces]
                 if job.fmt == "dav":
-                    job.state = "converting"
                     job.message = "DAV dosyası oluşturuluyor…"
-                    await asyncio.to_thread(nut_to_dav, tmp, job.path, job.ch, job.start)
-                    tmp.unlink(missing_ok=True)
+                    part = job.path.with_name(job.path.name + ".part")
+                    await asyncio.to_thread(nut_to_dav, paths, part, job.ch, job.start)
+                    os.replace(part, job.path)
                 else:
-                    job.state = "converting"
                     job.message = "Dosya hazırlanıyor…"
-                    await self._finalize(job, tmp)
+                    await self._finalize(job, paths)
                 if await _probe_duration(job.path) < 0.5:
                     raise RuntimeError("Video dosyası düzgün oluşturulamadı")
+                self._cleanup(job, keep_final=True)
                 job.size = job.path.stat().st_size
                 job.progress = 1.0
                 job.state = "done"
-                if not job.message.startswith("Kayıt kısmen"):
-                    job.message = "Tamamlandı"
+                job.message = f"Kayıt kısmen alınabildi ({int(job.done_sec)} sn)" if partial else "Tamamlandı"
+                self.save()
                 if self.on_done:
                     try:
                         self.on_done(job)
                     except Exception:
                         log.exception("kayıt bilgisi yazılamadı")
-        except asyncio.CancelledError:
-            job.state = "cancelled"
-            job.message = "İptal edildi"
-            self._cleanup(job)
+        except (asyncio.CancelledError, _Paused):
+            if job.proc and job.proc.returncode is None:
+                job.proc.kill()
+            if job.pause_req:
+                job.state, job.message = "paused", f"Duraklatıldı (%{int(job.progress * 100)})"
+            elif job.suspend_req:
+                job.state, job.message = "waiting", "Program açılınca devam edecek"
+            else:
+                job.state, job.message = "cancelled", "İptal edildi"
+                self._cleanup(job)
+            self.save()
         except Exception as e:
             log.exception("indirme hatası")
             job.state = "error"
             job.message = str(e) or e.__class__.__name__
             self._cleanup(job)
+            self.save()
 
-    async def _finalize(self, job, tmp):
-        """Ara dosyayı yeniden kodlamadan son biçime çevirir; görüntü oranını ve MP4 için hvc1 etiketini yazar."""
+    async def _adopt_orphan(self, job):
+        """Program beklenmedik kapandıysa son parça listeye girmemiştir: onarıp (yeniden paketleyip) ekler."""
+        p = job.piece_path(len(job.pieces) + 1)
+        if not p.exists():
+            return
+        fixed = p.with_name(p.name + ".fix")
+        proc = await asyncio.create_subprocess_exec(
+            FFMPEG, "-v", "error", "-y", "-i", str(p), "-map", "0", "-c", "copy",
+            "-f", "nut" if job.fmt == "dav" else "matroska", str(fixed),
+            stderr=asyncio.subprocess.DEVNULL, creationflags=NO_WINDOW)
+        await proc.wait()
+        dur = await _probe_duration(fixed) if fixed.exists() else 0
+        if proc.returncode == 0 and dur > 0.5:
+            os.replace(fixed, p)
+            job.pieces.append((p.name, dur))
+            self.save()
+        else:
+            for x in (p, fixed):
+                x.unlink(missing_ok=True)
+
+    async def _finalize(self, job, pieces):
+        """Parçaları yeniden kodlamadan son biçimde birleştirir; görüntü oranını ve MP4 için hvc1 etiketini yazar."""
         out = job.path.with_name(job.path.name + ".part")
-        base = [FFMPEG, "-v", "error", "-y", "-i", str(tmp), "-map", "0", "-c", "copy"]
+        if len(pieces) == 1:
+            src = ["-i", str(pieces[0])]
+        else:
+            lst = job.path.with_name(job.path.name + ".cap.list")
+            lst.write_text("".join("file '" + str(p).replace("'", "'\\''") + "'\n" for p in pieces), encoding="utf-8")
+            src = ["-f", "concat", "-safe", "0", "-i", str(lst)]
+        base = [FFMPEG, "-v", "error", "-y", *src, "-map", "0", "-c", "copy"]
         extra = ["-aspect", job.aspect] if job.aspect else []
         if CONTAINER[job.fmt] == "mp4":
             extra += ["-movflags", "+faststart"]
@@ -444,30 +636,37 @@ class Downloader:
         if not out.exists() or p.returncode != 0:
             raise RuntimeError("Dosya biçimi yazılamadı: " + err.decode(errors="replace")[-200:])
         os.replace(out, job.path)
-        tmp.unlink(missing_ok=True)
 
-    def _cleanup(self, job):
-        for p in (job.path.with_suffix(".nut.part"), job.path.with_name(job.path.name + ".part"),
-                  job.path.with_name(job.path.name + ".cap.mkv")):
+    def _cleanup(self, job, keep_final=False):
+        """Ara dosyaları (parçalar, liste, yarım çıktı) siler."""
+        names = [job.path.name + ".part", job.path.name + ".cap.list", job.path.name + ".cap.mkv"]
+        paths = [job.path.parent / n for n in names] + [job.path.with_suffix(".nut.part")]
+        paths += list(job.path.parent.glob(glob.escape(job.path.name) + ".cap*"))
+        for p in paths:
             try:
                 p.unlink(missing_ok=True)
             except OSError:
                 pass
+        if not keep_final:
+            job.pieces = []
 
-    async def _capture(self, job, dev, sub, tmp, tag=True):
+    async def _capture(self, job, dev, piece):
+        """Aralığın kalanını (inmiş parçaların sonundan itibaren) yeni bir parça dosyasına alır.
+        Dönüş: (alınan saniye, aralık sonuna ulaşıldı mı)."""
         fmt = job.fmt
+        offset = job.done_sec
+        remaining = job.duration - offset
         out = _out_args(fmt)
-        if not tag:
-            out = [x for x in out if x not in ("-tag:v", "hvc1")]
         if job.source:
-            src = ["-ss", f"{job.offset:.3f}", "-i", str(job.source)]
+            src = ["-ss", f"{job.offset + offset:.3f}", "-i", str(job.source)]
         else:
-            url = dev.rtsp_url(job.ch, sub, job.start, job.end + dt.timedelta(seconds=8), fast=True)
+            url = dev.rtsp_url(job.ch, job.sub, job.start + dt.timedelta(seconds=offset),
+                               job.end + dt.timedelta(seconds=8), fast=True)
             src = ["-rtsp_transport", "tcp", "-timeout", "20000000", "-i", url]
-        args = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"] + src + ["-t", f"{job.duration:.3f}"] + out
+        args = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y"] + src + ["-t", f"{remaining:.3f}"] + out
         if fmt != "dav":
             args += ["-f", "matroska"]
-        args += ["-progress", "pipe:1", "-nostats", str(tmp)]
+        args += ["-progress", "pipe:1", "-nostats", str(piece)]
         job.proc = await asyncio.create_subprocess_exec(
             *args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, creationflags=NO_WINDOW)
@@ -476,6 +675,8 @@ class Downloader:
         done = False
         try:
             while True:
+                if job.pause_req or job.suspend_req:
+                    break
                 try:
                     line = await asyncio.wait_for(job.proc.stdout.readline(), 2)
                 except asyncio.TimeoutError:
@@ -490,13 +691,13 @@ class Downloader:
                     if t > last_t + 0.01:
                         last_t = t
                         last_change = time.monotonic()
-                        job.progress = min(0.99, max(0.0, t / job.duration))
+                        job.progress = min(0.99, max(0.0, (offset + t) / job.duration))
                         job.message = f"Kayıt alınıyor… %{int(job.progress * 100)}"
                 if line and line.startswith(b"progress=end"):
                     done = True
                 idle = time.monotonic() - last_change
                 # Cihaz akışı aralık sonunda kapatmayabilir: sona yaklaştıysak ve veri durduysa bitir
-                if last_t >= job.duration - 2.5 and idle > 6:
+                if last_t >= remaining - 2.5 and idle > 6:
                     done = True
                     break
                 if idle > 45:
@@ -508,12 +709,10 @@ class Downloader:
         err = (await job.proc.stderr.read()).decode(errors="replace").strip()
         if err:
             log.info("ffmpeg: %s", err[-500:])
-        if tag and "hvc1" in err and "ncompatible" in err:
-            return await self._capture(job, dev, sub, tmp, tag=False)
-        ok = tmp.exists() and tmp.stat().st_size > 1000 and last_t > 0
-        if ok and not done and last_t < job.duration - 3:
-            job.message = f"Kayıt kısmen alınabildi ({int(last_t)} sn)"
-        return ok
+        if last_t >= remaining - 2.5:
+            done = True
+        ok = piece.exists() and piece.stat().st_size > 1000 and last_t > 0
+        return (last_t if ok else 0.0), done
 
     @staticmethod
     async def _stop(proc):

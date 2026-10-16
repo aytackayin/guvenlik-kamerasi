@@ -340,13 +340,19 @@ class Device:
 
         async def check(c):
             async with sem:
-                for attempt in range(2):
+                answered = False
+                for attempt in range(3):
                     try:
-                        c["active"] = bool(await self.find_records(c["id"], start, end))
-                        return
+                        if await self.find_records(c["id"], start, end):
+                            c["active"] = True
+                            return
+                        answered = True     # meşgul cihaz bazen yanlışlıkla "kayıt yok" der: bir kez daha sor
+                        if attempt:
+                            break
                     except DeviceError:
-                        await asyncio.sleep(0.5)
-                c["active"] = prev.get(c["id"], False)
+                        pass
+                    await asyncio.sleep(0.8)
+                c["active"] = False if answered else prev.get(c["id"], False)
 
         await asyncio.gather(*[check(c) for c in self.channels])
         if not any(c.get("active") for c in self.channels):
