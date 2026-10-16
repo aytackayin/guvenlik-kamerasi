@@ -71,6 +71,16 @@ Hazır paket, video dönüştürme için [FFmpeg](https://ffmpeg.org) (`ffmpeg.e
 
 Bu proje Dahua Technology ile ilişkili değildir.
 
+## Lisans
+
+[PolyForm Noncommercial 1.0.0](LICENSE) © Aytaç KAYIN
+
+- ✅ Kişisel kullanım, ev, okul, dernek gibi **ticari olmayan** her türlü kullanım serbest ve ücretsizdir.
+- ✅ Kodu inceleyebilir, değiştirebilir ve ticari olmayan amaçla paylaşabilirsiniz (lisans metni ve telif satırı korunarak).
+- ❌ Programın ya da değiştirilmiş bir kopyasının **satılması, ücretli bir ürüne veya hizmete dahil edilmesi** gibi ticari kullanımlar yasaktır.
+
+Ticari kullanım için izin almak isterseniz [GitHub](https://github.com/aytackayin) üzerinden iletişime geçin.
+
 ## Geliştirici
 
 **Aytaç KAYIN** · [github.com/aytackayin](https://github.com/aytackayin)
