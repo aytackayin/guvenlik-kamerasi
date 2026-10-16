@@ -1,0 +1,18 @@
+# derleme çıktıları
+build/
+dist/
+*.zip
+__pycache__/
+*.pyc
+
+# yerel araç ayarları
+.claude/
+.vscode/
+.idea/
+
+# kişisel veriler hiçbir zaman depoya girmesin
+ayarlar.json
+gunluk.txt
+*.dav
+*.mp4
+*.mkv

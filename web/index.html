@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Güvenlik Kamerası</title>
+<link rel="icon" href="/static/simge.ico" sizes="any">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-cam" viewBox="0 0 24 24"><path d="M16.5 8.5 21 6v12l-4.5-2.5"/><rect x="3" y="6" width="13.5" height="12" rx="2.5"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></symbol>
+    <symbol id="i-rew" viewBox="0 0 24 24"><path d="M11 18 5 12l6-6M19 18l-6-6 6-6"/></symbol>
+    <symbol id="i-fwd" viewBox="0 0 24 24"><path d="m13 18 6-6-6-6M5 18l6-6-6-6"/></symbol>
+    <symbol id="i-snap" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></symbol>
+    <symbol id="i-zin" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/></symbol>
+    <symbol id="i-zout" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8 11h6"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="2.5"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-disk" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 14h18"/><circle cx="16.5" cy="17" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M8 11h8M8 15h6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-step" viewBox="0 0 24 24"><path d="M6 5v14M10 5l9 7-9 7z"/></symbol>
+    <symbol id="i-stepb" viewBox="0 0 24 24"><path d="M18 5v14M14 5l-9 7 9 7z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <nav class="nav">
+    <div class="logo"><img src="/static/logo.svg" alt="Güvenlik Kamerası"></div>
+    <button data-page="live" class="active"><svg class="i"><use href="#i-live"/></svg>Canlı</button>
+    <button data-page="archive"><svg class="i"><use href="#i-history"/></svg>Kayıtlar</button>
+    <button data-page="downloads"><svg class="i"><use href="#i-download"/></svg>İndirilenler<span class="badge" id="dl-badge" hidden>0</span></button>
+    <button data-page="disk"><svg class="i"><use href="#i-disk"/></svg>Disk</button>
+    <div class="spacer"></div>
+    <button data-page="settings"><svg class="i"><use href="#i-settings"/></svg>Ayarlar</button>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <h1 id="page-title">Canlı İzleme</h1>
+      <div class="grow"></div>
+      <div class="status-pill" id="status-pill"><span class="dot" id="status-dot"></span><span id="status-text">Başlatılıyor…</span></div>
+    </header>
+
+    <!-- izleme (canlı + kayıtlar) -->
+    <section class="page active" id="page-watch">
+      <div class="watch" id="watch">
+        <div class="stage" id="stage">
+          <div class="grid" id="grid"></div>
+          <div class="single-bar" id="single-bar" hidden>
+            <button class="btn glass" id="btn-back"><svg class="i"><use href="#i-back"/></svg>Geri</button>
+            <div class="title glass" id="single-title"></div>
+            <div class="grow"></div>
+            <button class="btn icon glass" id="btn-zout" title="Uzaklaştır (−)"><svg class="i"><use href="#i-zout"/></svg></button>
+            <button class="btn icon glass" id="btn-zin" title="Yakınlaştır (+)"><svg class="i"><use href="#i-zin"/></svg></button>
+            <button class="btn glass" id="btn-snap" title="Kare al (S)"><svg class="i"><use href="#i-snap"/></svg>Kare al</button>
+          </div>
+        </div>
+        <div class="empty-state" id="watch-empty" hidden>
+          <div>
+            <div class="ico"><svg class="i"><use href="#i-cam"/></svg></div>
+            <div class="big" id="empty-title">Cihaza bağlanılıyor…</div>
+            <div id="empty-text"></div>
+            <div style="margin-top:16px" id="empty-actions"></div>
+          </div>
+        </div>
+        <div class="controls" id="controls">
+          <div class="ctl-row">
+            <button class="btn icon" id="btn-rew" title="30 sn geri (←)"><svg class="i"><use href="#i-rew"/></svg></button>
+            <button class="btn icon primary" id="btn-play" title="Oynat / Duraklat (Boşluk)"><svg class="i"><use href="#i-pause"/></svg></button>
+            <button class="btn icon" id="btn-fwd" title="30 sn ileri (→)"><svg class="i"><use href="#i-fwd"/></svg></button>
+            <div class="seg" id="speed">
+              <button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button data-speed="8">8×</button>
+            </div>
+            <div class="cam-sel-wrap">
+              <button class="btn" id="btn-cams" title="Gösterilecek kameraları seçin"><svg class="i"><use href="#i-cam"/></svg><span id="cams-label">Kameralar</span></button>
+              <div class="cam-sel" id="cam-sel" hidden></div>
+            </div>
+            <div class="clock" id="clock">--:--:--<small>&nbsp;</small></div>
+            <div class="grow"></div>
+            <input type="date" class="date-input" id="date" title="Tarih seç">
+            <input type="time" class="date-input" id="time" step="1" title="Saate git">
+            <button class="btn" id="btn-go">Git</button>
+            <button class="btn live on" id="btn-live" title="Canlı görüntüye dön">● CANLI</button>
+            <button class="btn" id="btn-clip"><svg class="i"><use href="#i-scissors"/></svg>Kırp ve İndir</button>
+            <button class="btn icon" id="btn-full" title="Tam ekran (F)"><svg class="i"><use href="#i-full"/></svg></button>
+          </div>
+          <div class="timeline-wrap" id="timeline">
+            <canvas id="tl-canvas"></canvas>
+            <div class="tl-tip" id="tl-tip"></div>
+            <div class="timeline-hint">Tıkla: git · Tekerlek: yakınlaştır · Sürükle: kaydır</div>
+          </div>
+          <div class="clip-panel" id="clip-panel">
+            <label>Başlangıç <input type="datetime-local" step="1" id="clip-start"></label>
+            <label>Bitiş <input type="datetime-local" step="1" id="clip-end"></label>
+            <span>Süre: <span class="dur" id="clip-dur">—</span></span>
+            <label>Biçim <select id="clip-format"></select></label>
+            <div class="chips" id="clip-cams"></div>
+            <div style="flex:1"></div>
+            <button class="btn ghost" id="clip-cancel">Vazgeç</button>
+            <button class="btn primary" id="clip-go"><svg class="i"><use href="#i-download"/></svg>İndir</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- indirilenler -->
+    <section class="page" id="page-downloads">
+      <div class="content"><div class="content-inner wide">
+        <div class="lib-toolbar card">
+          <div class="lib-search"><svg class="i"><use href="#i-search"/></svg><input type="text" id="lib-q" placeholder="Ada, kameraya veya notlara göre ara…"></div>
+          <label>Tarih <input type="date" id="lib-from" class="date-input"> – <input type="date" id="lib-to" class="date-input"></label>
+          <select id="lib-cam" class="date-input"><option value="">Tüm kameralar</option></select>
+          <select id="lib-type" class="date-input">
+            <option value="">Tüm dosyalar</option><option value="video">Videolar</option><option value="image">Fotoğraflar</option><option value="log">Olay logları</option>
+            <option value="mp4">MP4</option><option value="webm">WebM</option><option value="mkv">MKV</option><option value="avi">AVI</option><option value="dav">DAV</option>
+            <option value="jpg">JPEG</option><option value="png">PNG</option><option value="webp">WebP</option>
+          </select>
+          <select id="lib-sort" class="date-input">
+            <option value="rec-desc">Kayıt tarihi (yeni → eski)</option><option value="rec-asc">Kayıt tarihi (eski → yeni)</option>
+            <option value="mtime-desc">İndirme tarihi (yeni → eski)</option><option value="name">Ad</option>
+            <option value="size-desc">Boyut (büyük → küçük)</option>
+          </select>
+          <button class="btn small ghost" id="lib-clear">Temizle</button>
+          <div class="grow"></div>
+          <button class="btn small" id="btn-open-folder"><svg class="i"><use href="#i-folder"/></svg>Klasörü aç</button>
+        </div>
+        <div id="dl-active"></div>
+        <p class="sub" id="lib-info" style="margin:4px 2px 10px"></p>
+        <div class="lib-grid" id="lib-grid"></div>
+      </div></div>
+    </section>
+
+    <!-- disk -->
+    <section class="page" id="page-disk">
+      <div class="content"><div class="content-inner wide">
+        <div class="tabs" id="disk-tabs">
+          <button data-t="general" class="on">Genel</button>
+          <button data-t="files">Kayıt dosyaları ve olaylar</button>
+        </div>
+        <div id="disk-body" style="max-width:880px"></div>
+        <div id="disk-files" hidden>
+          <div class="lib-toolbar card">
+            <label>Tarih <input type="date" id="ex-from" class="date-input"> – <input type="date" id="ex-to" class="date-input"></label>
+            <label>Saat <input type="time" id="ex-h1" class="date-input" title="Her günün bu saatinden"> – <input type="time" id="ex-h2" class="date-input" title="bu saatine kadar"></label>
+            <select id="ex-type" class="date-input">
+              <option value="">Kayıtlar + olaylar</option><option value="normal">Yalnızca kayıtlar</option>
+              <option value="event">Yalnızca olaylar</option><option value="İnsan">Olay: İnsan</option><option value="Araç">Olay: Araç</option><option value="Hareket">Olay: Hareket</option>
+            </select>
+            <select id="ex-sort" class="date-input">
+              <option value="desc">Yeni → eski</option><option value="asc">Eski → yeni</option>
+              <option value="size">Boyut</option><option value="events">Olay sayısı</option><option value="cam">Kamera</option>
+            </select>
+            <button class="btn small primary" id="ex-load"><svg class="i"><use href="#i-refresh"/></svg>Listele</button>
+            <div class="chips" id="ex-cams" style="flex-basis:100%"></div>
+            <div class="lib-search" style="flex:1 1 260px"><svg class="i"><use href="#i-search"/></svg><input type="text" id="ex-q" placeholder="Kamera, saat (ör. 20:3) veya olay türü ara…"></div>
+          </div>
+          <div class="card" id="ex-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px"></div>
+          <div class="card" style="padding:4px 0"><div id="ex-list"></div></div>
+        </div>
+      </div></div>
+    </section>
+
+    <!-- ayarlar -->
+    <section class="page" id="page-settings">
+      <div class="content"><div class="content-inner">
+        <div class="tabs" id="set-tabs">
+          <button data-tab="general" class="on">Genel</button>
+          <button data-tab="cams">Kamera Ayarları</button>
+          <button data-tab="users">Kullanıcılar</button>
+          <button data-tab="about">Hakkında</button>
+        </div>
+        <div id="tab-about" hidden>
+          <div class="card about">
+            <img class="about-logo" src="/static/logo.svg" alt="">
+            <div class="about-body">
+              <h2>Güvenlik Kamerası</h2>
+              <div class="about-ver">Sürüm <span id="ab-ver">–</span></div>
+              <p>Dahua tabanlı kayıt cihazlarınızı (XVR / NVR) bilgisayardan kolayca izlemeniz için hazırlanmış ücretsiz ve açık kaynaklı bir program.
+                Cihazı yerel ağda ya da internet üzerinden (P2P, SN numarasıyla) kendisi bulur; canlı izleme, kayıtlarda gezinme, video indirme
+                ve kamera / kullanıcı ayarlarını tek bir sade pencerede toplar. Cihaz bilgileriniz ve şifreniz yalnızca bu bilgisayarda saklanır.</p>
+              <div class="about-links">
+                <button class="btn" data-url="https://github.com/aytackayin"><svg class="i"><use href="#i-github"/></svg>github.com/aytackayin</button>
+                <button class="btn" id="ab-repo"><svg class="i"><use href="#i-github"/></svg>Proje sayfası</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Güncelleme</h2>
+            <p class="sub">Yeni sürümler GitHub üzerinden yayınlanır. Güncelleme indirilip kurulur, program kendiliğinden yeniden açılır.</p>
+            <div class="upd-row">
+              <div class="upd-text" id="upd-text">Denetlenmedi</div>
+              <button class="btn" id="upd-check"><svg class="i"><use href="#i-refresh"/></svg>Güncellemeleri denetle</button>
+              <button class="btn primary" id="upd-install" hidden><svg class="i"><use href="#i-download"/></svg>Güncelle</button>
+            </div>
+            <div class="upd-bar" id="upd-bar" hidden><div id="upd-fill"></div></div>
+            <div class="upd-notes" id="upd-notes" hidden></div>
+          </div>
+        </div>
+        <div id="tab-users" hidden>
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+              <h2 style="flex:1">Cihaz kullanıcıları</h2>
+              <button class="btn small" id="u-syslog"><svg class="i"><use href="#i-history"/></svg>Sistem olayları</button>
+              <button class="btn small primary" id="u-add"><svg class="i"><use href="#i-check"/></svg>Yeni kullanıcı</button>
+            </div>
+            <p class="sub">Kayıt cihazına giriş yapabilen hesaplar ve yetkileri. Bir kullanıcıya tıklayınca son yaptıkları gösterilir.</p>
+            <div id="u-list"></div>
+          </div>
+        </div>
+        <div id="tab-cams" hidden>
+          <div class="card">
+            <h2>Kamera seçin</h2>
+            <p class="sub">Her kameranın görüntü ve kayıt ayarlarını ayrı ayrı yapabilirsiniz. Değişiklikler <b>Kaydet</b> ile kayıt cihazına yazılır.</p>
+            <div class="cam-pick" id="cam-pick"></div>
+          </div>
+          <div id="cam-form"></div>
+        </div>
+        <div id="tab-general">
+        <div class="card" id="welcome-card" hidden>
+          <div class="welcome">
+            <div class="ico"><svg class="i"><use href="#i-cam"/></svg></div>
+            <div><h2>Hoş geldiniz</h2><p class="sub" style="margin:0">Kayıt cihazınızın SN numarasını, kullanıcı adını ve şifresini girin. Program cihazı yerel ağda ya da internet üzerinden (DMSS gibi) kendisi bulur.</p></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Cihaz bağlantısı</h2>
+          <p class="sub">Bilgiler yalnızca bu bilgisayarda saklanır, şifre Windows tarafından şifrelenir.</p>
+          <div class="form">
+            <label for="f-serial">SN (Seri numarası)</label>
+            <div><input type="text" id="f-serial" placeholder="Örn. 1A2B3C4D5E6F7G8" autocomplete="off" spellcheck="false">
+              <div class="hint">Cihazın etiketinde ya da DMSS uygulamasında cihaz bilgilerinde yazar.</div></div>
+            <label for="f-user">Kullanıcı adı</label>
+            <input type="text" id="f-user" autocomplete="off" spellcheck="false">
+            <label for="f-pass">Şifre</label>
+            <div class="field"><input type="password" id="f-pass" autocomplete="new-password">
+              <button class="btn icon" id="f-pass-show" title="Göster"><svg class="i"><use href="#i-eye"/></svg></button></div>
+            <label for="f-mode">Bağlantı yolu</label>
+            <select id="f-mode">
+              <option value="auto">Otomatik (önerilen) — önce yerel ağ, sonra internet</option>
+              <option value="p2p">Sadece internet (P2P, SN ile)</option>
+              <option value="lan">Sadece yerel ağ (IP adresi ile)</option>
+            </select>
+            <label for="f-ip">Yerel IP adresi</label>
+            <div><input type="text" id="f-ip" placeholder="Boş bırakılırsa otomatik bulunur (örn. 192.168.1.108)" spellcheck="false"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" id="btn-save"><svg class="i"><use href="#i-check"/></svg>Kaydet ve bağlan</button>
+          </div>
+        </div>
+
+        <div class="card" id="device-card" hidden>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <h2 style="flex:1">Cihaz ve kameralar</h2>
+            <button class="btn small" id="btn-rescan"><svg class="i"><use href="#i-refresh"/></svg>Kameraları yeniden tara</button>
+          </div>
+          <div class="info-grid" id="dev-info"></div>
+          <p class="sub" style="margin:16px 0 10px">Kamera adlarını buradan değiştirebilirsiniz (cihaza kaydedilir). Yeni takılan kameralar kayıt başladıktan sonra otomatik olarak eklenir.</p>
+          <div class="cam-list" id="cam-list"></div>
+          <div style="margin-top:14px">
+            <label class="switch"><input type="checkbox" id="f-showall"> Kamerası olmayan boş kanalları da göster</label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Kayıt ve indirme</h2>
+          <p class="sub">İndirilen videolar ve alınan kareler bu klasöre kaydedilir.</p>
+          <div class="form">
+            <label>Kayıt klasörü</label>
+            <div class="field"><input type="text" id="f-dir" readonly><button class="btn" id="btn-dir"><svg class="i"><use href="#i-folder"/></svg>Değiştir</button></div>
+            <label for="f-format">Varsayılan video biçimi</label>
+            <select id="f-format"></select>
+            <label for="f-snapfmt">Kare alma biçimi</label>
+            <select id="f-snapfmt">
+              <option value="jpg">JPEG (her yerde açılır)</option>
+              <option value="png">PNG (kayıpsız, büyük dosya)</option>
+              <option value="webp">WebP (web için, küçük dosya)</option>
+            </select>
+          </div>
+          <div class="hint" style="margin-top:12px">MP4 çoğu oynatıcıda açılır. Eski bilgisayar veya telefonlarda açılmazsa "MP4 – H.264" seçin. DAV, Dahua oynatıcılarının (SmartPlayer) kendi biçimidir.</div>
+          <div class="form-actions"><button class="btn" id="btn-save2">Kaydet</button></div>
+        </div>
+        <div class="card" id="appdata-card">
+          <h2>Program verileri</h2>
+          <p class="sub">Programın bu bilgisayarda sakladığı yardımcı veriler. İndirdiğiniz videolar ve fotoğraflar bu bölümden <b>silinmez</b>.</p>
+          <div id="appdata-body"><div class="spinner"></div></div>
+        </div>
+        <div class="card" id="mypass-card" hidden>
+          <h2>Şifremi değiştir</h2>
+          <p class="sub">Oturum açtığınız cihaz kullanıcısının (<b id="mp-user"></b>) şifresi. Değişiklik kayıt cihazına ve DMSS girişinize de yansır.</p>
+          <div class="form">
+            <label>Mevcut şifre</label><input type="password" id="mp-old" autocomplete="current-password">
+            <label>Yeni şifre</label><input type="password" id="mp-new" autocomplete="new-password" placeholder="En az 8 karakter, harf ve rakam">
+            <label>Yeni şifre (tekrar)</label><input type="password" id="mp-new2" autocomplete="new-password">
+          </div>
+          <div class="form-actions"><button class="btn primary" id="mp-save"><svg class="i"><use href="#i-lock"/></svg>Şifreyi değiştir</button></div>
+        </div>
+        </div>
+      </div></div>
+    </section>
+  </div>
+</div>
+<div class="modal" id="modal" hidden><div class="modal-box" id="modal-box"></div></div>
+<div class="toasts" id="toasts"></div>
+<script src="/static/app.js"></script>
+<script src="/static/cameras.js"></script>
+<script src="/static/users.js"></script>
+<script src="/static/library.js"></script>
+<script src="/static/explorer.js"></script>
+</body>
+</html>
